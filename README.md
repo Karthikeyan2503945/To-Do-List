@@ -1,4 +1,4 @@
-Features
+## Features
 -> Add tasks with:
 * Title
 * Category

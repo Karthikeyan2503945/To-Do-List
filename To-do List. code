@@ -1,0 +1,232 @@
+import json
+import os
+from datetime import datetime
+from shutil import copyfile
+
+DATA_FILE = "tasks.json"
+BACKUP_FILE = "tasks_backup.json"
+
+# Task Data Structure
+
+class Task:
+    def __init__(self, title, category="General", priority="Medium",
+                 due_date=None, completed=False):
+        self.title = title
+        self.category = category
+        self.priority = priority
+        self.due_date = due_date  
+        self.completed = completed
+
+    def to_dict(self):
+        return {
+            "title": self.title,
+            "category": self.category,
+            "priority": self.priority,
+            "due_date": self.due_date,
+            "completed": self.completed
+        }
+
+    @staticmethod
+    def from_dict(data):
+        return Task(
+            data["title"],
+            data.get("category", "General"),
+            data.get("priority", "Medium"),
+            data.get("due_date", None),
+            data.get("completed", False)
+        )
+
+# To-Do List Management
+
+class TodoList:
+    def __init__(self):
+        self.tasks = []
+        self.load()
+
+    def load(self):
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, "r") as file:
+                data = json.load(file)
+                self.tasks = [Task.from_dict(t) for t in data]
+        else:
+            self.tasks = []
+
+    def save(self):
+        with open(DATA_FILE, "w") as file:
+            json.dump([t.to_dict() for t in self.tasks], file, indent=4)
+
+        # auto-backup
+        copyfile(DATA_FILE, BACKUP_FILE)
+
+    def add_task(self, task):
+        self.tasks.append(task)
+        self.save()
+        print(f"Added task: {task.title}")
+
+    def remove_task(self, index):
+        if 0 <= index < len(self.tasks):
+            removed = self.tasks.pop(index)
+            self.save()
+            print(f"Removed: {removed.title}")
+        else:
+            print("Invalid task number.")
+
+    def edit_task(self, index, new_title):
+        if 0 <= index < len(self.tasks):
+            self.tasks[index].title = new_title
+            self.save()
+            print("Task updated.")
+        else:
+            print("Invalid task number.")
+
+    def mark_completed(self, index, value=True):
+        if 0 <= index < len(self.tasks):
+            self.tasks[index].completed = value
+            self.save()
+            print("Task status updated.")
+        else:
+            print("Invalid task number.")
+
+    def search(self, keyword):
+        return [t for t in self.tasks if keyword.lower() in t.title.lower()]
+
+    def sort_by_priority(self):
+        priority_order = {"High": 1, "Medium": 2, "Low": 3}
+        self.tasks.sort(key=lambda t: priority_order[t.priority])
+        self.save()
+
+    def sort_by_due_date(self):
+        self.tasks.sort(
+            key=lambda t: (t.due_date is None, t.due_date)
+        )
+        self.save()
+
+    def sort_alpha(self):
+        self.tasks.sort(key=lambda t: t.title.lower())
+        self.save()
+
+    def view(self, show_completed=None):
+        print("\n ═══════ TO-DO LIST ═══════")
+
+        for i, task in enumerate(self.tasks):
+            if show_completed is True and not task.completed:
+                continue
+            if show_completed is False and task.completed:
+                continue
+
+            status = "✓" if task.completed else "✗"
+            due = task.due_date if task.due_date else "No date"
+            print(f"{i+1}. [{status}] {task.title} "
+                  f"(Category: {task.category}, "
+                  f"Priority: {task.priority}, "
+                  f"Due: {due})")
+
+        print("------------------------------\n")
+
+    def clear_completed(self):
+        self.tasks = [t for t in self.tasks if not t.completed]
+        self.save()
+        print("All completed tasks removed.")
+
+    def clear_all(self):
+        confirm = input("Are you sure? This will delete ALL tasks (yes/no): ")
+        if confirm.lower() == "yes":
+            self.tasks = []
+            self.save()
+            print("All tasks cleared.")
+#User Interface
+def main():
+    todo = TodoList()
+
+# Main Menu Loop
+    while True:
+        print("""
+═══════ TO-DO LIST MENU ═══════
+1. View all tasks
+2. View completed tasks
+3. View pending tasks
+4. Add new task
+5. Remove task
+6. Edit task
+7. Mark task completed
+8. Mark task uncompleted
+9. Search tasks
+10. Sort by priority
+11. Sort by due date
+12. Sort alphabetically
+13. Clear completed tasks
+14. Clear all tasks
+15. Exit
+═══════ ═══════ ═══════ ═══════
+        """)
+
+        choice = input("Choose an option (1-15): ")
+
+        if choice == "1":
+            todo.view()
+        elif choice == "2":
+            todo.view(show_completed=True)
+        elif choice == "3":
+            todo.view(show_completed=False)
+
+        elif choice == "4":
+            title = input("Task title: ")
+            category = input("Category: ")
+            priority = input("Priority (Low/Medium/High): ").title()
+            due_date = input("Due date (YYYY-MM-DD or leave blank): ")
+            due_date = due_date if due_date else None
+
+            task = Task(title, category, priority, due_date)
+            todo.add_task(task)
+
+        elif choice == "5":
+            todo.view()
+            num = int(input("Task number to remove: ")) - 1
+            todo.remove_task(num)
+
+        elif choice == "6":
+            todo.view()
+            num = int(input("Task number to edit: ")) - 1
+            new_title = input("New title: ")
+            todo.edit_task(num, new_title)
+
+        elif choice == "7":
+            todo.view()
+            num = int(input("Task number to complete: ")) - 1
+            todo.mark_completed(num, True)
+        elif choice == "8":
+            todo.view()
+            num = int(input("Task number to mark uncompleted: ")) - 1
+            todo.mark_completed(num, False)
+
+        elif choice == "9":
+            keyword = input("Search keyword: ")
+            results = todo.search(keyword)
+            print("\nSearch Results:")
+            for t in results:
+                print(f"- {t.title}")
+            print()
+
+        elif choice == "10":
+            todo.sort_by_priority()
+            print("Sorted by priority.")
+        elif choice == "11":
+            todo.sort_by_due_date()
+            print("Sorted by due date.")
+        elif choice == "12":
+            todo.sort_alpha()
+            print("Sorted alphabetically.")
+
+        elif choice == "13":
+            todo.clear_completed()
+        elif choice == "14":
+            todo.clear_all()
+
+        elif choice == "15":
+            print("Goodbye!")
+            break
+
+        else:
+            print("Invalid choice. Try again.")
+
+main()
